@@ -146,6 +146,22 @@ def _call_run_evaluation(
     if "num_processes" in params:
         kwargs["num_processes"] = config.max_workers
 
+    default_args = {
+        "force_rebuild": False,
+        "cache_level": "env",
+        "clean": True,
+        "open_file_limit": 4096,
+        "run_id": "validator",
+        "namespace": None,
+        "rewrite_reports": False,
+        "modal": False,
+        "instance_image_tag": "latest",
+        "report_dir": ".",
+    }
+    for key, value in default_args.items():
+        if key in params and key not in kwargs:
+            kwargs[key] = value
+
     try:
         return run_evaluation(**kwargs)
     finally:
