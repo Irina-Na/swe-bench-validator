@@ -91,10 +91,18 @@ def build_prediction(data_point: Dict[str, Any]) -> Dict[str, Any]:
 
 def _resolve_run_evaluation():
     try:
-        from swebench.harness.run_evaluation import run_evaluation
+        import swebench.harness.run_evaluation as run_eval_module
     except ImportError:
-        from swebench.harness import run_evaluation
-    return run_evaluation
+        from swebench.harness import run_evaluation as run_eval_module
+    if callable(run_eval_module):
+        return run_eval_module
+    if hasattr(run_eval_module, "run_evaluation") and callable(
+        run_eval_module.run_evaluation
+    ):
+        return run_eval_module.run_evaluation
+    if hasattr(run_eval_module, "main") and callable(run_eval_module.main):
+        return run_eval_module.main
+    raise ValidationError("Unable to resolve swebench run_evaluation callable.")
 
 
 def _prepare_predictions_file(predictions: List[Dict[str, Any]]) -> Path:
