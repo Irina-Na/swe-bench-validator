@@ -1,0 +1,60 @@
+name: Validate SWE-bench Data Points
+
+on:
+  push:
+    paths:
+      - "data_points/**"
+  pull_request:
+    paths:
+      - "data_points/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed data points
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE_SHA" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$(git rev-parse HEAD^)"
+          fi
+          CHANGED="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'data_points/*.json' | tr '\n' ' ')"
+          COUNT="$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- 'data_points/*.json' | wc -l | tr -d ' ')"
+          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if no data points changed
+        if: steps.changes.outputs.count == '0'
+        run: echo "No data point changes detected."
+
+      - name: Set up Python
+        if: steps.changes.outputs.count != '0'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up uv
+        if: steps.changes.outputs.count != '0'
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        if: steps.changes.outputs.count != '0'
+        run: uv sync --frozen
+
+      - name: Validate changed data points
+        if: steps.changes.outputs.count != '0'
+        run: |
+          uv run python -m swe_bench_validator.cli \
+            --config validator_config.json \
+            --data-points ${{ steps.changes.outputs.files }}
