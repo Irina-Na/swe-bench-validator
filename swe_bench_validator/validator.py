@@ -183,6 +183,22 @@ def _normalize_result(result: Any) -> Tuple[bool, str]:
             statuses = result["per_instance"].values()
             all_ok = all(status.get("resolved", False) for status in statuses)
             return all_ok, "per_instance resolved summary returned"
+    if isinstance(result, (str, Path)):
+        report_path = Path(result)
+        if report_path.exists():
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return False, f"invalid report JSON: {report_path}"
+            unresolved = report.get("unresolved_instances", 0)
+            errors = report.get("error_instances", 0)
+            empty = report.get("empty_patch_instances", 0)
+            if unresolved or errors or empty:
+                return False, (
+                    f"report indicates failures "
+                    f"(unresolved={unresolved}, errors={errors}, empty={empty})"
+                )
+            return True, f"report indicates success: {report_path}"
     return True, "run_evaluation completed without structured result"
 
 
