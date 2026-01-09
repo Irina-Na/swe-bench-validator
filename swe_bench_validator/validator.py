@@ -91,10 +91,18 @@ def build_prediction(data_point: Dict[str, Any]) -> Dict[str, Any]:
 
 def _resolve_run_evaluation():
     try:
-        from swebench.harness.run_evaluation import run_evaluation
+        import swebench.harness.run_evaluation as run_eval_module
     except ImportError:
-        from swebench.harness import run_evaluation
-    return run_evaluation
+        from swebench.harness import run_evaluation as run_eval_module
+    if callable(run_eval_module):
+        return run_eval_module
+    if hasattr(run_eval_module, "run_evaluation") and callable(
+        run_eval_module.run_evaluation
+    ):
+        return run_eval_module.run_evaluation
+    if hasattr(run_eval_module, "main") and callable(run_eval_module.main):
+        return run_eval_module.main
+    raise ValidationError("Unable to resolve swebench run_evaluation callable.")
 
 
 def _prepare_predictions_file(predictions: List[Dict[str, Any]]) -> Path:
@@ -137,6 +145,22 @@ def _call_run_evaluation(
         kwargs["max_workers"] = config.max_workers
     if "num_processes" in params:
         kwargs["num_processes"] = config.max_workers
+
+    default_args = {
+        "force_rebuild": False,
+        "cache_level": "env",
+        "clean": True,
+        "open_file_limit": 4096,
+        "run_id": "validator",
+        "namespace": None,
+        "rewrite_reports": False,
+        "modal": False,
+        "instance_image_tag": "latest",
+        "report_dir": ".",
+    }
+    for key, value in default_args.items():
+        if key in params and key not in kwargs:
+            kwargs[key] = value
 
     try:
         return run_evaluation(**kwargs)
